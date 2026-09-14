@@ -1,0 +1,121 @@
+# 博物馆藏品管理系统
+
+面向博物馆 / 纪念馆的藏品全生命周期管理系统:藏品档案登记、存放位置管理、
+出入库与移库台账、展陈布撤展、修复过程记录、**库室温湿度异常自动告警**、
+**借展到期 / 逾期跟踪**、运行总览看板。
+
+技术栈:**Vue 3 + Vite + Element Plus + ECharts**(前端)、
+**FastAPI + SQLAlchemy + Pydantic v2**(后端)、
+**PostgreSQL**(生产)/ **SQLite**(零配置演示,默认)。
+
+---
+
+## 快速开始
+
+### 方式一:一键启动(前后端分离开发模式,推荐)
+
+需要两个终端:
+
+```bash
+# 终端 1 —— 后端(自动建表 + 播种样例数据)
+cd backend
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python -m app.seed          # 播种内置样例数据
+uvicorn app.main:app --reload --port 8000
+
+# 终端 2 —— 前端
+cd frontend
+npm install
+npm run dev
+```
+
+打开 http://localhost:5173 (Vite 已把 `/api` 代理到 8000 端口)。
+
+### 方式二:单服务部署(后端托管构建产物)
+
+```bash
+cd frontend && npm install && npm run build
+cp -r dist ../backend/frontend_dist
+cd ../backend
+python -m app.seed
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+打开 http://localhost:8000 即可,FastAPI 会托管前端并支持前端路由深链。
+
+### 重新播种样例数据
+
+```bash
+python -m app.seed            # 已有数据则跳过
+python -m app.seed --reset    # 清空并重新播种
+```
+
+### 切换到 PostgreSQL
+
+复制 `backend/.env.example` 为 `backend/.env`,配置连接串:
+
+```ini
+DATABASE_URL=postgresql+psycopg2://museum:museum@localhost:5432/museum
+```
+
+建库后执行 `python -m app.seed` 即可(建表由 SQLAlchemy 自动完成)。
+
+---
+
+## 功能模块
+
+| 模块 | 说明 |
+| --- | --- |
+| 运行总览 | 藏品总数/状态/类别/等级图表、告警与借展汇总、各位置最新环境 |
+| 藏品档案 | 总登记号、名称、年代、材质、尺寸、等级、来源等;多条件检索;建档自动生成入库记录 |
+| 出入库记录 | 入库/出库/移库/布展/撤展/修复/借展全类型流转台账,时间线呈现 |
+| 存放位置 | 库房/展厅/修复室档案,逐位置配置温湿度阈值;人工录入/模拟采集 |
+| 展陈管理 | 展览策划、展品布展(自动出库流转、状态→展陈中)、撤展归库 |
+| 修复管理 | 立项送修→病害/方案→过程节点时间线→结项验收归库 |
+| 借展跟踪 | 借展机构、联系人、应还日期;自动计算剩余天数、**逾期红标**、**30 天内到期黄标**、归还入库 |
+| 环境监测 | 72 小时温湿度双曲线(含阈值标线)、自动告警、确认处理、异常模拟注入 |
+
+### 环境告警规则
+
+- 温度 / 湿度超出位置配置区间 → **预警**
+- 温度越界 ≥ 3℃ 或 湿度越界 ≥ 10 个百分点 → **严重**
+- 未处理告警在侧边栏与总览页实时徽标提示,确认后归档
+
+状态机由后端集中控制:布展→展陈中、送修→修复中、借出→借展中
+(借展在外的藏品禁止普通流转),撤展/结项/归还时可指定归库位置。
+
+---
+
+## 内置样例数据
+
+- **12 个存放位置**:陶瓷/青铜/书画/丝织/玉石库房、三个常设展厅、临时展厅、修复室等(含不同温湿度阈值)
+- **13 件藏品**:青花梅瓶、青铜鼎、溪山行旅图摹本、谷纹玉璧、西汉漆奁、缂丝册页、唐三彩骆驼等,含一级文物 4 件
+- **2 个在展展览 + 1 个已结束 + 1 个筹备中**(含布展/撤展流转)
+- **1 个已完成修复项目(5 节点)+ 1 个进行中(3 节点)**
+- **3 件在外借展**:1 件已逾期 8 天(西安)、1 件 12 天后到期(苏州)、1 件 62 天后到期(上海),另有 1 条已归还历史记录
+- **72 小时温湿度历史曲线** + 2 条未处理告警(书画库温度预警、陶瓷库湿度严重超标)+ 1 条已处理历史告警
+
+可在「环境监测」页点击 **模拟正常采集 / 注入异常读数** 体验完整告警闭环。
+
+## 目录结构
+
+```
+museum/
+├── backend/
+│   ├── app/
+│   │   ├── main.py            # FastAPI 入口(自动建表、CORS、SPA 托管)
+│   │   ├── config.py          # DATABASE_URL / CORS 配置
+│   │   ├── database.py        # SQLAlchemy 引擎(PG/SQLite 自适应)
+│   │   ├── models.py          # 9 张数据表
+│   │   ├── schemas.py         # Pydantic 模型
+│   │   ├── seed.py            # 样例数据播种
+│   │   ├── services/env_service.py  # 阈值评估/告警分级/模拟采集
+│   │   └── routers/           # dashboard/collections/locations/exhibitions/restorations/loans/environment
+│   └── requirements.txt
+└── frontend/
+    └── src/
+        ├── api/               # axios 接口封装
+        ├── components/Layout.vue
+        └── views/             # 9 个页面
+```

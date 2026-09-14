@@ -1,0 +1,14 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/museum.db
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+backend/frontend_dist/
+
+# Logs
+*.log
