@@ -109,6 +109,47 @@ def update_collection(
         )
         if dup:
             raise HTTPException(400, "总登记号已存在")
+
+    # 档案编辑变更存放位置:仅在库藏品允许,并自动补登出入库台账
+    if "location_id" in data and data["location_id"] != c.location_id:
+        old_id = c.location_id
+        new_id = data["location_id"]
+        if new_id is not None and not db.get(models.Location, new_id):
+            raise HTTPException(400, "目标存放位置不存在")
+        if c.status not in (models.STATUS_IN_STORAGE, models.STATUS_OUT_STORAGE):
+            raise HTTPException(
+                400,
+                f"藏品当前为「{c.status}」状态,不能通过编辑档案修改位置,"
+                "请在对应模块办理撤展/结项/归还归库",
+            )
+        if new_id is not None:
+            db.add(
+                models.Movement(
+                    collection_id=c.id,
+                    move_type=models.MOVE_IN if old_id is None else models.MOVE_TRANSFER,
+                    from_location_id=old_id,
+                    to_location_id=new_id,
+                    purpose="档案编辑变更存放位置",
+                    operator="档案管理",
+                    move_date=datetime.utcnow(),
+                )
+            )
+            c.status = models.STATUS_IN_STORAGE
+        else:
+            # 清空库位视为出库
+            db.add(
+                models.Movement(
+                    collection_id=c.id,
+                    move_type=models.MOVE_OUT,
+                    from_location_id=old_id,
+                    to_location_id=None,
+                    purpose="档案编辑清空存放位置",
+                    operator="档案管理",
+                    move_date=datetime.utcnow(),
+                )
+            )
+            c.status = models.STATUS_OUT_STORAGE
+
     for k, v in data.items():
         setattr(c, k, v)
     db.commit()
@@ -162,8 +203,11 @@ def create_movement(
     collection_id: int, payload: schemas.MovementCreate, db: Session = Depends(get_db)
 ):
     c = _get_collection_or_404(db, collection_id)
-    if c.status == models.STATUS_LOAN_OUT:
-        raise HTTPException(400, "藏品借展在外,请先办理归还")
+    if c.status not in (models.STATUS_IN_STORAGE, models.STATUS_OUT_STORAGE):
+        raise HTTPException(
+            400,
+            f"藏品当前为「{c.status}」状态,布展/修复/借展请在对应模块办理撤展、结项或归还后再操作",
+        )
 
     move_type = payload.move_type
     allowed = {

@@ -62,8 +62,16 @@ def create_loan(payload: schemas.LoanCreate, db: Session = Depends(get_db)):
     c = db.get(models.Collection, payload.collection_id)
     if not c:
         raise HTTPException(404, "藏品不存在")
-    if c.status == models.STATUS_LOAN_OUT:
-        raise HTTPException(400, "该藏品已借展在外")
+    if c.status != models.STATUS_IN_STORAGE:
+        hint = {
+            models.STATUS_EXHIBITION: "请先在展陈管理中办理撤展归库",
+            models.STATUS_RESTORATION: "请先完成修复并结项归库",
+            models.STATUS_LOAN_OUT: "该藏品已借展在外",
+            models.STATUS_OUT_STORAGE: "请先办理入库归库",
+        }.get(c.status, "")
+        raise HTTPException(
+            400, f"藏品当前为「{c.status}」状态,不能登记借展。{hint}"
+        )
     if payload.due_date <= (payload.loan_date or date.today()):
         raise HTTPException(400, "应还日期必须晚于借出日期")
 

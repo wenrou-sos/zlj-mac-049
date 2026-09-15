@@ -11,6 +11,13 @@ const selectedId = ref(null)
 const readings = ref([])
 const alerts = ref([])
 const alertFilter = ref(false) // false = 未处理
+const hours = ref(72)
+const hourOptions = [
+  { label: '近 24 小时', value: 24 },
+  { label: '近 72 小时', value: 72 },
+  { label: '近 7 天', value: 168 },
+  { label: '近 30 天', value: 720 },
+]
 const chartEl = ref(null)
 let chart = null
 
@@ -24,7 +31,7 @@ async function loadLocations() {
 }
 
 async function loadReadings() {
-  readings.value = await envApi.readings(selectedId.value, 72)
+  readings.value = await envApi.readings(selectedId.value, hours.value)
   await nextTick()
   renderChart()
 }
@@ -121,7 +128,7 @@ async function simulate(anomaly) {
   await Promise.all([loadAlerts(), loadLocations()])
 }
 
-watch(selectedId, loadReadings)
+watch([selectedId, hours], loadReadings)
 window.addEventListener('resize', () => chart?.resize())
 
 onMounted(async () => {
@@ -152,6 +159,10 @@ onMounted(async () => {
                 </el-tag>
               </el-option>
             </el-select>
+            <el-select v-model="hours" style="width:130px">
+              <el-option v-for="o in hourOptions" :key="o.value" :label="o.label" :value="o.value" />
+            </el-select>
+            <span style="font-size:12px;color:#909399">共 {{ readings.length }} 条读数</span>
             <div class="spacer"></div>
             <el-button :icon="'Refresh'" @click="simulate(false)">模拟正常采集</el-button>
             <el-button type="danger" plain :icon="'Warning'" @click="simulate(true)">

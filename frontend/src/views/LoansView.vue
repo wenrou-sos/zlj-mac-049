@@ -181,11 +181,11 @@ onMounted(async () => {
     <el-dialog v-model="createDialog" title="登记借展" width="600px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="92px">
         <el-form-item label="藏品" prop="collection_id">
-          <el-select v-model="form.collection_id" filterable style="width:100%" placeholder="选择借出藏品">
+          <el-select v-model="form.collection_id" filterable style="width:100%" placeholder="仅在库藏品可借展">
             <el-option
-              v-for="c in collections.filter((x) => x.status !== '借展中')"
+              v-for="c in collections.filter((x) => x.status === '在库')"
               :key="c.id"
-              :label="`${c.accession_no} ${c.name}(${c.status})`"
+              :label="`${c.accession_no} ${c.name}`"
               :value="c.id"
             />
           </el-select>

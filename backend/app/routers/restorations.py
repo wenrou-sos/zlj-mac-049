@@ -37,10 +37,16 @@ def create_restoration(payload: schemas.RestorationCreate, db: Session = Depends
     c = db.get(models.Collection, payload.collection_id)
     if not c:
         raise HTTPException(404, "藏品不存在")
-    if c.status == models.STATUS_RESTORATION:
-        raise HTTPException(400, "该藏品已在修复中")
-    if c.status == models.STATUS_LOAN_OUT:
-        raise HTTPException(400, "藏品借展在外,无法送修")
+    if c.status != models.STATUS_IN_STORAGE:
+        hint = {
+            models.STATUS_EXHIBITION: "请先在展陈管理中办理撤展归库",
+            models.STATUS_RESTORATION: "该藏品已在修复中",
+            models.STATUS_LOAN_OUT: "藏品借展在外,无法送修",
+            models.STATUS_OUT_STORAGE: "藏品不在库,请先办理入库归库",
+        }.get(c.status, "")
+        raise HTTPException(
+            400, f"藏品当前为「{c.status}」状态,不能送修。{hint}"
+        )
 
     r = models.Restoration(
         collection_id=payload.collection_id,

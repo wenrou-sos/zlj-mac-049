@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
@@ -27,10 +27,13 @@ def list_readings(
 ):
     if not db.get(models.Location, location_id):
         raise HTTPException(404, "存放位置不存在")
-    since = datetime.utcnow().timestamp() - hours * 3600
+    since = datetime.utcnow() - timedelta(hours=hours)
     rows = (
         db.query(models.EnvReading)
-        .filter(models.EnvReading.location_id == location_id)
+        .filter(
+            models.EnvReading.location_id == location_id,
+            models.EnvReading.recorded_at >= since,
+        )
         .order_by(models.EnvReading.recorded_at.desc())
         .limit(500)
         .all()

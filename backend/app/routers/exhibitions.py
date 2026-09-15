@@ -90,8 +90,16 @@ def add_exhibition_item(
     )
     if exists:
         raise HTTPException(400, "该藏品已在本展览中展出")
-    if c.status not in (models.STATUS_IN_STORAGE, models.STATUS_EXHIBITION):
-        raise HTTPException(400, f"藏品当前状态为「{c.status}」,无法布展")
+    if c.status != models.STATUS_IN_STORAGE:
+        hint = {
+            models.STATUS_EXHIBITION: "藏品已在其他展览中,请先撤展",
+            models.STATUS_RESTORATION: "藏品正在修复中",
+            models.STATUS_LOAN_OUT: "藏品借展在外",
+            models.STATUS_OUT_STORAGE: "藏品不在库,请先办理入库归库",
+        }.get(c.status, "")
+        raise HTTPException(
+            400, f"藏品当前为「{c.status}」状态,无法布展。{hint}"
+        )
 
     item = models.ExhibitionItem(
         exhibition_id=exhibition_id,

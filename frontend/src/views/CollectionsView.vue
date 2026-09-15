@@ -52,6 +52,7 @@ function reset() {
 // ---------- 新建/编辑 ----------
 const dialogVisible = ref(false)
 const editing = ref(null)
+const editingStatus = ref('在库')
 const submitting = ref(false)
 const formRef = ref(null)
 const form = reactive({
@@ -77,6 +78,7 @@ const rules = {
 
 function openCreate() {
   editing.value = null
+  editingStatus.value = '在库'
   Object.assign(form, {
     accession_no: '',
     name: '',
@@ -97,6 +99,7 @@ function openCreate() {
 async function openEdit(row) {
   editing.value = row.id
   const detail = await collectionApi.get(row.id)
+  editingStatus.value = detail.status
   Object.assign(form, {
     ...detail,
     acquired_date: detail.acquired_date || '',
@@ -275,7 +278,13 @@ onMounted(async () => {
           </el-col>
           <el-col :span="24">
             <el-form-item label="存放位置">
-              <el-select v-model="form.location_id" clearable filterable style="width:100%">
+              <el-select
+                v-model="form.location_id"
+                clearable
+                filterable
+                style="width:100%"
+                :disabled="editing && !['在库', '出库中'].includes(editingStatus)"
+              >
                 <el-option
                   v-for="l in locations.filter((x) => x.location_type === '库房' || x.id === form.location_id)"
                   :key="l.id"
@@ -283,6 +292,12 @@ onMounted(async () => {
                   :value="l.id"
                 />
               </el-select>
+              <div v-if="editing && !['在库', '出库中'].includes(editingStatus)" style="font-size:12px;color:#e6a23c;line-height:1.4">
+                当前为「{{ editingStatus }}」状态,位置由撤展/结项/归还流程自动更新,不可直接修改
+              </div>
+              <div v-else style="font-size:12px;color:#909399;line-height:1.4">
+                修改存放位置将自动登记一条移库/入库台账
+              </div>
             </el-form-item>
           </el-col>
           <el-col :span="24">
