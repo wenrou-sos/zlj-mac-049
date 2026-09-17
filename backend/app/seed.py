@@ -21,6 +21,9 @@ def _reset_all() -> None:
     tables = [
         "alerts",
         "env_readings",
+        "inventory_adjustments",
+        "inventory_items",
+        "inventory_tasks",
         "restorations",
         "loan_records",
         "exhibition_items",
@@ -536,6 +539,204 @@ def _seed(db) -> None:
             purpose="影像采集完成归库",
             operator="信息部·韩墨",
             move_date=_dt(today - timedelta(days=12), 16),
+        )
+    )
+    db.flush()
+
+    # ---------------- 馆藏盘点 ----------------
+    # 已结案:玉石器类别盘点(错位 → 复核 → 调整执行 → 结案,全程留痕)
+    t1 = models.InventoryTask(
+        code=f"PD-{(today - timedelta(days=32)):%Y%m%d}-001",
+        title="玉石器藏品年度盘点",
+        scope_type=models.INV_SCOPE_CATEGORY,
+        scope_value="玉石器",
+        initiator="保管部·周文澜",
+        deadline=today - timedelta(days=18),
+        status=models.INV_TASK_CLOSED,
+        remark="年度例行盘点,覆盖全部玉石器藏品。",
+        created_at=_dt(today - timedelta(days=32), 9),
+        closed_at=_dt(today - timedelta(days=28), 17),
+        closed_by="保管部·周文澜",
+        summary={
+            "总数": 2, "正常": 1, "错位": 1, "损坏": 0, "盘亏": 0, "盘盈": 0,
+            "调整已执行": 1, "调整已驳回": 0, "盘点人员": ["陈立"],
+        },
+    )
+    db.add(t1)
+    db.flush()
+
+    def _log_entry(d: date, h: int, actor: str, action: str, note: str | None = None):
+        return {
+            "time": _dt(d, h).strftime("%Y-%m-%d %H:%M:%S"),
+            "actor": actor,
+            "action": action,
+            "note": note,
+        }
+
+    jade = colls["SS-2011-0015"]  # 玉璧借展在外,电话确认
+    db.add(
+        models.InventoryItem(
+            task_id=t1.id,
+            collection_id=jade.id,
+            book_location_id=None,
+            book_status=models.STATUS_LOAN_OUT,
+            result=models.INV_RESULT_NORMAL,
+            condition_note="借展上海博物馆,已与对方联系人确认在展,状况良好。",
+            review_status=models.INV_REVIEW_NONE,
+            checked_by="陈立",
+            checked_at=_dt(today - timedelta(days=30), 10),
+            logs=[
+                _log_entry(today - timedelta(days=30), 10, "陈立", "盘点登记:正常",
+                           "借展在外,与上海博物馆视频点验"),
+            ],
+        )
+    )
+    it_hook = models.InventoryItem(
+        task_id=t1.id,
+        collection_id=hook.id,
+        book_location_id=locs["A-301"].id,
+        book_status=models.STATUS_IN_STORAGE,
+        result=models.INV_RESULT_MISPLACED,
+        actual_location_id=locs["A-401"].id,
+        condition_note="实物在暂存周转库找到,外观完好。",
+        review_status=models.INV_REVIEW_DONE,
+        checked_by="陈立",
+        checked_at=_dt(today - timedelta(days=30), 11),
+        reviewed_by="保管部·周文澜",
+        reviewed_at=_dt(today - timedelta(days=30), 15),
+        review_note="确认错位,系盘点准备期间临时移位未登记所致。",
+        logs=[
+            _log_entry(today - timedelta(days=30), 11, "陈立", "盘点登记:错位",
+                       "实物在暂存周转库找到"),
+            _log_entry(today - timedelta(days=30), 15, "保管部·周文澜", "复核通过",
+                       "确认错位,系盘点准备期间临时移位未登记所致。"),
+            _log_entry(today - timedelta(days=30), 16, "陈立", "提请调整:变更位置",
+                       "实物已移至暂存周转库,账面同步调整。"),
+            _log_entry(today - timedelta(days=29), 9, "保管部·周文澜", "调整已执行:变更位置",
+                       "同意调整,后续归位另行登记。"),
+        ],
+    )
+    db.add(it_hook)
+    db.flush()
+    db.add(
+        models.InventoryAdjustment(
+            item_id=it_hook.id,
+            adjust_type=models.INV_ADJUST_LOCATION,
+            to_location_id=locs["A-401"].id,
+            reason="实物已移至暂存周转库,账面同步调整。",
+            status=models.INV_ADJUST_EXECUTED,
+            applicant="陈立",
+            created_at=_dt(today - timedelta(days=30), 16),
+            processed_by="保管部·周文澜",
+            processed_at=_dt(today - timedelta(days=29), 9),
+            process_note="同意调整,后续归位另行登记。",
+        )
+    )
+    db.add(
+        models.Movement(
+            collection_id=hook.id,
+            move_type=models.MOVE_INVENTORY_ADJUST,
+            from_location_id=locs["A-301"].id,
+            to_location_id=locs["A-401"].id,
+            purpose=f"盘点调整(错位):盘点任务 {t1.code}",
+            operator="保管部·周文澜",
+            move_date=_dt(today - timedelta(days=29), 9),
+            remark="实物已移至暂存周转库,账面同步调整。",
+        )
+    )
+
+    # 进行中:书画恒温恒湿库季度盘点(含待复核损坏、待审批盘盈调整)
+    t2 = models.InventoryTask(
+        code=f"PD-{(today - timedelta(days=2)):%Y%m%d}-001",
+        title="书画恒温恒湿库季度盘点",
+        scope_type=models.INV_SCOPE_LOCATION,
+        scope_location_id=locs["A-201"].id,
+        initiator="保管部·周文澜",
+        deadline=today + timedelta(days=5),
+        remark="季度例行盘点,重点核对绢本与纸本藏品保存状况。",
+        created_at=_dt(today - timedelta(days=2), 9),
+    )
+    db.add(t2)
+    db.flush()
+
+    sh_scroll = colls["SH-2012-0066"]
+    db.add(
+        models.InventoryItem(
+            task_id=t2.id,
+            collection_id=sh_scroll.id,
+            book_location_id=locs["A-201"].id,
+            book_status=models.STATUS_IN_STORAGE,
+            result=models.INV_RESULT_NORMAL,
+            condition_note="画心平整,绫边完好。",
+            review_status=models.INV_REVIEW_NONE,
+            checked_by="陈立",
+            checked_at=_dt(today - timedelta(days=1), 10),
+            logs=[_log_entry(today - timedelta(days=1), 10, "陈立", "盘点登记:正常",
+                             "画心平整,绫边完好。")],
+        )
+    )
+    sh_fan = colls["SH-2020-0091"]
+    db.add(
+        models.InventoryItem(
+            task_id=t2.id,
+            collection_id=sh_fan.id,
+            book_location_id=locs["A-201"].id,
+            book_status=models.STATUS_IN_STORAGE,
+            result=models.INV_RESULT_DAMAGED,
+            actual_location_id=locs["A-201"].id,
+            condition_note="扇面右下角发现霉斑,面积约2cm²,建议尽快安排修复。",
+            review_status=models.INV_REVIEW_PENDING,
+            checked_by="陈立",
+            checked_at=_dt(today - timedelta(days=1), 10, ),
+            logs=[_log_entry(today - timedelta(days=1), 10, "陈立", "盘点登记:损坏",
+                             "扇面右下角发现霉斑,面积约2cm²")],
+        )
+    )
+    sh_flower = colls["SH-2019-0074"]
+    db.add(
+        models.InventoryItem(
+            task_id=t2.id,
+            collection_id=sh_flower.id,
+            book_location_id=locs["A-201"].id,
+            book_status=models.STATUS_IN_STORAGE,
+        )
+    )
+    # 盘盈:漆奁账面在暂存周转库,实物在书画库发现(复核通过,调整待审批)
+    lacquer = colls["SC-2014-0027"]
+    it_surplus = models.InventoryItem(
+        task_id=t2.id,
+        collection_id=lacquer.id,
+        book_location_id=locs["A-401"].id,
+        book_status=models.STATUS_IN_STORAGE,
+        result=models.INV_RESULT_SURPLUS,
+        actual_location_id=locs["A-201"].id,
+        condition_note="修复后临时存放于书画库,未办移库手续,器物完好。",
+        review_status=models.INV_REVIEW_DONE,
+        checked_by="陈立",
+        checked_at=_dt(today - timedelta(days=1), 11),
+        reviewed_by="保管部·周文澜",
+        reviewed_at=_dt(today - timedelta(days=1), 14),
+        review_note="情况属实,书画库恒温条件更宜漆器保存,同意调整账面位置。",
+        logs=[
+            _log_entry(today - timedelta(days=1), 11, "陈立", "盘点登记:盘盈",
+                       "实物在书画库发现,账面在暂存周转库"),
+            _log_entry(today - timedelta(days=1), 14, "保管部·周文澜", "复核通过",
+                       "情况属实,同意调整账面位置。"),
+            _log_entry(today - timedelta(days=1), 15, "陈立", "提请调整:变更位置",
+                       "将账面位置由暂存周转库调整为书画恒温恒湿库。"),
+        ],
+    )
+    db.add(it_surplus)
+    db.flush()
+    db.add(
+        models.InventoryAdjustment(
+            item_id=it_surplus.id,
+            adjust_type=models.INV_ADJUST_LOCATION,
+            to_location_id=locs["A-201"].id,
+            reason="将账面位置由暂存周转库调整为书画恒温恒湿库。",
+            status=models.INV_ADJUST_PENDING,
+            applicant="陈立",
+            created_at=_dt(today - timedelta(days=1), 15),
         )
     )
     db.flush()

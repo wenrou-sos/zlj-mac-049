@@ -47,6 +47,9 @@ def reset_sqlite_sequence():
         tables = [
             "alerts",
             "env_readings",
+            "inventory_adjustments",
+            "inventory_items",
+            "inventory_tasks",
             "restorations",
             "loan_records",
             "exhibition_items",

@@ -9,7 +9,7 @@ const loading = ref(false)
 const collections = ref([])
 const filters = ref({ collection_id: null, move_type: '' })
 
-const moveTypes = ['入库', '出库', '移库', '布展', '撤展归库', '修复出库', '修复归库', '借展出库', '借展归还']
+const moveTypes = ['入库', '出库', '移库', '布展', '撤展归库', '修复出库', '修复归库', '借展出库', '借展归还', '盘点调整']
 const moveTypeTag = {
   入库: 'success',
   出库: 'info',
@@ -20,6 +20,7 @@ const moveTypeTag = {
   修复归库: 'success',
   借展出库: 'danger',
   借展归还: 'success',
+  盘点调整: 'warning',
 }
 
 async function load() {

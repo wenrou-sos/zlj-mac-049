@@ -290,4 +290,130 @@ class DashboardOut(BaseModel):
     loans_due_soon: int
     exhibitions_active: int
     restorations_active: int
+    inventory_active: int = 0
+    inventory_pending_review: int = 0
     env_status: list[dict[str, Any]]
+
+
+# ---------- 馆藏盘点 ----------
+class InventoryTaskCreate(BaseModel):
+    title: str
+    scope_type: str  # 库房/类别/等级
+    scope_location_id: int | None = None
+    scope_value: str | None = None
+    initiator: str
+    deadline: date
+    remark: str | None = None
+
+
+class InventoryScanRequest(BaseModel):
+    accession_no: str
+    actual_location_id: int | None = None
+    damaged: bool = False
+    condition_note: str | None = None
+    checker: str
+
+
+class InventoryItemCheck(BaseModel):
+    """人工登记盘点结果(无法扫码时逐件核对,或确认盘亏)"""
+
+    result: str  # 正常/错位/损坏/盘亏
+    actual_location_id: int | None = None
+    condition_note: str | None = None
+    checker: str
+
+
+class InventoryReviewRequest(BaseModel):
+    approve: bool
+    reviewer: str
+    note: str | None = None
+
+
+class InventoryAdjustmentCreate(BaseModel):
+    adjust_type: str  # 变更位置/状态变更/损坏登记
+    to_location_id: int | None = None
+    to_status: str | None = None
+    reason: str | None = None
+    applicant: str
+
+
+class InventoryAdjustmentProcess(BaseModel):
+    processor: str
+    note: str | None = None
+
+
+class InventoryTaskClose(BaseModel):
+    closed_by: str
+
+
+class InventoryAdjustmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    item_id: int
+    adjust_type: str
+    to_location_id: int | None
+    to_status: str | None
+    reason: str | None
+    status: str
+    applicant: str
+    created_at: datetime
+    processed_by: str | None
+    processed_at: datetime | None
+    process_note: str | None
+    to_location_name: str | None = None
+
+
+class InventoryItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    task_id: int
+    collection_id: int
+    book_location_id: int | None
+    book_status: str
+    result: str
+    actual_location_id: int | None
+    condition_note: str | None
+    review_status: str
+    checked_by: str | None
+    checked_at: datetime | None
+    reviewed_by: str | None
+    reviewed_at: datetime | None
+    review_note: str | None
+    logs: list[Any] = []
+    accession_no: str | None = None
+    collection_name: str | None = None
+    category: str | None = None
+    grade: str | None = None
+    book_location_name: str | None = None
+    actual_location_name: str | None = None
+    adjustments: list[InventoryAdjustmentOut] = []
+
+
+class InventoryTaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    code: str
+    title: str
+    scope_type: str
+    scope_location_id: int | None
+    scope_value: str | None
+    initiator: str
+    deadline: date
+    status: str
+    remark: str | None
+    created_at: datetime
+    closed_at: datetime | None
+    closed_by: str | None
+    summary: dict[str, Any] | None
+    scope_label: str | None = None
+    total: int = 0
+    checked: int = 0
+    diff_count: int = 0
+    pending_review: int = 0
+    pending_adjust: int = 0
+    result_counts: dict[str, int] = {}
+    days_remaining: int | None = None
+
+
+class InventoryTaskDetail(InventoryTaskOut):
+    items: list[InventoryItemOut] = []

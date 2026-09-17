@@ -73,6 +73,21 @@ def dashboard(db: Session = Depends(get_db)):
         .scalar()
     )
 
+    inventory_active = (
+        db.query(func.count(models.InventoryTask.id))
+        .filter(models.InventoryTask.status == models.INV_TASK_ACTIVE)
+        .scalar()
+    )
+    inventory_pending_review = (
+        db.query(func.count(models.InventoryItem.id))
+        .join(models.InventoryTask, models.InventoryItem.task_id == models.InventoryTask.id)
+        .filter(
+            models.InventoryTask.status == models.INV_TASK_ACTIVE,
+            models.InventoryItem.review_status == models.INV_REVIEW_PENDING,
+        )
+        .scalar()
+    )
+
     env_status = []
     for loc in db.query(models.Location).order_by(models.Location.code).all():
         reading = (
@@ -121,5 +136,7 @@ def dashboard(db: Session = Depends(get_db)):
         loans_due_soon=loans_due_soon,
         exhibitions_active=exhibitions_active,
         restorations_active=restorations_active or 0,
+        inventory_active=inventory_active or 0,
+        inventory_pending_review=inventory_pending_review or 0,
         env_status=env_status,
     )

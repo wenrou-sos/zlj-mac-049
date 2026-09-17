@@ -21,6 +21,7 @@ STATUS_OUT_STORAGE = "出库中"
 STATUS_EXHIBITION = "展陈中"
 STATUS_RESTORATION = "修复中"
 STATUS_LOAN_OUT = "借展中"
+STATUS_MISSING = "盘亏"  # 盘点确认遗失,待后续处置
 
 # 出入库 / 流转类型
 MOVE_IN = "入库"
@@ -32,6 +33,44 @@ MOVE_REPAIR_OUT = "修复出库"
 MOVE_REPAIR_BACK = "修复归库"
 MOVE_LOAN_OUT = "借展出库"
 MOVE_LOAN_BACK = "借展归还"
+MOVE_INVENTORY_ADJUST = "盘点调整"
+
+# 盘点任务状态
+INV_TASK_ACTIVE = "进行中"
+INV_TASK_CLOSED = "已结案"
+INV_TASK_CANCELLED = "已取消"
+
+# 盘点范围类型
+INV_SCOPE_LOCATION = "库房"
+INV_SCOPE_CATEGORY = "类别"
+INV_SCOPE_GRADE = "等级"
+
+# 盘点明细结果
+INV_RESULT_PENDING = "未盘"
+INV_RESULT_NORMAL = "正常"
+INV_RESULT_MISPLACED = "错位"
+INV_RESULT_DAMAGED = "损坏"
+INV_RESULT_LOSS = "盘亏"
+INV_RESULT_SURPLUS = "盘盈"
+INV_DIFF_RESULTS = (
+    INV_RESULT_MISPLACED,
+    INV_RESULT_DAMAGED,
+    INV_RESULT_LOSS,
+    INV_RESULT_SURPLUS,
+)
+
+# 复核状态
+INV_REVIEW_NONE = "无需复核"
+INV_REVIEW_PENDING = "待复核"
+INV_REVIEW_DONE = "已复核"
+
+# 调整申请
+INV_ADJUST_LOCATION = "变更位置"
+INV_ADJUST_STATUS = "状态变更"
+INV_ADJUST_DAMAGE = "损坏登记"
+INV_ADJUST_PENDING = "待审批"
+INV_ADJUST_EXECUTED = "已执行"
+INV_ADJUST_REJECTED = "已驳回"
 
 # 温湿度告警级别
 ALERT_NORMAL = "正常"
@@ -93,6 +132,9 @@ class Collection(Base):
         back_populates="collection", cascade="all, delete-orphan"
     )
     loans: Mapped[list["LoanRecord"]] = relationship(
+        back_populates="collection", cascade="all, delete-orphan"
+    )
+    inventory_items: Mapped[list["InventoryItem"]] = relationship(
         back_populates="collection", cascade="all, delete-orphan"
     )
 
@@ -227,3 +269,91 @@ class EnvAlert(Base):
     acknowledged_by: Mapped[str | None] = mapped_column(String(50), nullable=True)
 
     location: Mapped["Location"] = relationship(back_populates="alerts")
+
+
+class InventoryTask(Base):
+    """馆藏盘点任务(按库房/类别/等级发起,带截止日期)"""
+
+    __tablename__ = "inventory_tasks"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True, index=True)  # 任务单号
+    title: Mapped[str] = mapped_column(String(200))
+    scope_type: Mapped[str] = mapped_column(String(10))  # 库房/类别/等级
+    scope_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
+    scope_value: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 类别/等级值
+    initiator: Mapped[str] = mapped_column(String(50))  # 发起馆员
+    deadline: Mapped[date] = mapped_column(Date)
+    status: Mapped[str] = mapped_column(String(20), default=INV_TASK_ACTIVE, index=True)
+    remark: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    closed_by: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # 结案汇总快照
+
+    scope_location: Mapped["Location | None"] = relationship()
+    items: Mapped[list["InventoryItem"]] = relationship(
+        back_populates="task", cascade="all, delete-orphan"
+    )
+
+
+class InventoryItem(Base):
+    """盘点明细:一件藏品在某次任务中的账面快照与盘点结果"""
+
+    __tablename__ = "inventory_items"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("inventory_tasks.id"), index=True)
+    collection_id: Mapped[int] = mapped_column(ForeignKey("collections.id"), index=True)
+    book_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )  # 账面位置快照
+    book_status: Mapped[str] = mapped_column(String(20))  # 账面状态快照
+    result: Mapped[str] = mapped_column(String(10), default=INV_RESULT_PENDING, index=True)
+    actual_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )  # 实物核对位置
+    condition_note: Mapped[str | None] = mapped_column(Text, nullable=True)  # 保管/完残情况
+    review_status: Mapped[str] = mapped_column(String(20), default=INV_REVIEW_NONE, index=True)
+    checked_by: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 盘点人
+    checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    reviewed_by: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    review_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    logs: Mapped[list] = mapped_column(JSON, default=list)  # 处理痕迹 [{time,actor,action,note}]
+
+    task: Mapped["InventoryTask"] = relationship(back_populates="items")
+    collection: Mapped["Collection"] = relationship(back_populates="inventory_items")
+    book_location: Mapped["Location | None"] = relationship(foreign_keys=[book_location_id])
+    actual_location: Mapped["Location | None"] = relationship(
+        foreign_keys=[actual_location_id]
+    )
+    adjustments: Mapped[list["InventoryAdjustment"]] = relationship(
+        back_populates="item", cascade="all, delete-orphan"
+    )
+
+
+class InventoryAdjustment(Base):
+    """盘点差异调整申请:复核通过后提请,审批执行时才改写正式档案"""
+
+    __tablename__ = "inventory_adjustments"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    item_id: Mapped[int] = mapped_column(ForeignKey("inventory_items.id"), index=True)
+    adjust_type: Mapped[str] = mapped_column(String(20))  # 变更位置/状态变更/损坏登记
+    to_location_id: Mapped[int | None] = mapped_column(
+        ForeignKey("locations.id"), nullable=True
+    )
+    to_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    reason: Mapped[str | None] = mapped_column(Text, nullable=True)  # 申请理由
+    status: Mapped[str] = mapped_column(String(20), default=INV_ADJUST_PENDING, index=True)
+    applicant: Mapped[str] = mapped_column(String(50))  # 申请人
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    processed_by: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 审批人
+    processed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    process_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    item: Mapped["InventoryItem"] = relationship(back_populates="adjustments")
+    to_location: Mapped["Location | None"] = relationship()

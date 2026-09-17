@@ -141,6 +141,20 @@ onMounted(load)
         </el-col>
       </el-row>
 
+      <el-alert
+        v-if="data.inventory_active"
+        type="warning"
+        :closable="false"
+        show-icon
+        style="margin-top:14px;cursor:pointer"
+        @click="router.push('/inventories')"
+      >
+        <template #title>
+          盘点进行中:{{ data.inventory_active }} 个任务<template v-if="data.inventory_pending_review">
+            · 待复核差异 {{ data.inventory_pending_review }} 条</template>,点击查看盘点进度 →
+        </template>
+      </el-alert>
+
       <el-row :gutter="14" style="margin-top:14px">
         <el-col :span="8"><el-card><div ref="categoryChart" style="height:280px"></div></el-card></el-col>
         <el-col :span="8"><el-card><div ref="statusChart" style="height:280px"></div></el-card></el-col>

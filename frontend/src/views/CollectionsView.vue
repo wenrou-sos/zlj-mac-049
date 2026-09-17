@@ -18,6 +18,7 @@ const statusTagType = {
   展陈中: 'primary',
   修复中: 'warning',
   借展中: 'danger',
+  盘亏: 'danger',
 }
 
 const gradeColor = {

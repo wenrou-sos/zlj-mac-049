@@ -51,6 +51,16 @@ const routes = [
         name: '环境监测',
         component: () => import('../views/EnvironmentView.vue'),
       },
+      {
+        path: 'inventories',
+        name: '馆藏盘点',
+        component: () => import('../views/InventoriesView.vue'),
+      },
+      {
+        path: 'inventories/:id',
+        name: '盘点任务详情',
+        component: () => import('../views/InventoryDetailView.vue'),
+      },
     ],
   },
 ]

@@ -83,3 +83,22 @@ export const envApi = {
     http.post(`/api/environment/alerts/${id}/ack`, null, { params: { by } }).then((r) => r.data),
   simulate: (data) => http.post('/api/environment/simulate', data).then((r) => r.data),
 }
+
+export const inventoryApi = {
+  tasks: (params) => http.get('/api/inventory/tasks', { params }).then((r) => r.data),
+  createTask: (data) => http.post('/api/inventory/tasks', data).then((r) => r.data),
+  getTask: (id) => http.get(`/api/inventory/tasks/${id}`).then((r) => r.data),
+  cancelTask: (id) => http.post(`/api/inventory/tasks/${id}/cancel`).then((r) => r.data),
+  closeTask: (id, data) => http.post(`/api/inventory/tasks/${id}/close`, data).then((r) => r.data),
+  scan: (id, data) => http.post(`/api/inventory/tasks/${id}/scan`, data).then((r) => r.data),
+  checkItem: (itemId, data) =>
+    http.post(`/api/inventory/items/${itemId}/check`, data).then((r) => r.data),
+  reviewItem: (itemId, data) =>
+    http.post(`/api/inventory/items/${itemId}/review`, data).then((r) => r.data),
+  createAdjustment: (itemId, data) =>
+    http.post(`/api/inventory/items/${itemId}/adjustments`, data).then((r) => r.data),
+  approveAdjustment: (id, data) =>
+    http.post(`/api/inventory/adjustments/${id}/approve`, data).then((r) => r.data),
+  rejectAdjustment: (id, data) =>
+    http.post(`/api/inventory/adjustments/${id}/reject`, data).then((r) => r.data),
+}

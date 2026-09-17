@@ -54,6 +54,7 @@ def collection_meta(db: Session = Depends(get_db)):
         models.STATUS_EXHIBITION,
         models.STATUS_RESTORATION,
         models.STATUS_LOAN_OUT,
+        models.STATUS_MISSING,
     ]
     return {"categories": sorted(categories), "statuses": statuses}
 
