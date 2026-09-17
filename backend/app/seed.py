@@ -19,6 +19,10 @@ def _reset_all() -> None:
     import sqlalchemy as sa
 
     tables = [
+        "inventory_logs",
+        "inventory_adjustments",
+        "inventory_items",
+        "inventory_tasks",
         "alerts",
         "env_readings",
         "restorations",
@@ -580,6 +584,128 @@ def _seed(db) -> None:
         a.acknowledged = True
         a.acknowledged_at = a.created_at + timedelta(hours=2)
         a.acknowledged_by = "设备部·卢工"
+
+    db.flush()
+
+    # ---------------- 馆藏盘点 ----------------
+    def _inv_item(task, c, result=models.INV_RESULT_PENDING, **kw):
+        loc_name = None
+        if c.location_id:
+            loc = db.get(models.Location, c.location_id)
+            loc_name = f"{loc.code} {loc.name}" if loc else None
+        item = models.InventoryItem(
+            task_id=task.id,
+            collection_id=c.id,
+            snapshot_accession_no=c.accession_no,
+            snapshot_name=c.name,
+            snapshot_location_id=c.location_id,
+            snapshot_location_name=loc_name,
+            snapshot_status=c.status,
+            result=result,
+            **kw,
+        )
+        db.add(item)
+        return item
+
+    def _inv_log(task, action, detail, operator, days_ago, item_id=None):
+        db.add(
+            models.InventoryLog(
+                task_id=task.id,
+                item_id=item_id,
+                action=action,
+                detail=detail,
+                operator=operator,
+                created_at=datetime.utcnow() - timedelta(days=days_ago),
+            )
+        )
+
+    # 任务 1:玉石器库房专项盘点(进行中,含 1 错位 + 1 损坏差异)
+    jade_loc = locs["A-301"]
+    t1 = models.InventoryTask(
+        title="2026 年度玉石器库房专项盘点",
+        scope_type="库房",
+        scope_value=jade_loc.name,
+        location_id=jade_loc.id,
+        librarian="保管部·周文澜",
+        checker="陈立",
+        start_date=today - timedelta(days=6),
+        due_date=today + timedelta(days=3),
+        status=models.INV_ADJUSTING,
+        remark="重点核对一级、二级文物账实与库位一致情况。",
+    )
+    db.add(t1)
+    db.flush()
+    jade_colls = [c for c in colls.values() if c.location_id == jade_loc.id]
+    for c in jade_colls:
+        if c.id == hook.id:
+            continue  # 带钩下方单独登记为错位
+        _inv_item(t1, c, models.INV_RESULT_MATCH,
+                  checker="陈立", checked_at=_dt(today - timedelta(days=5), 15))
+    # 白玉带钩错位:账面 A-301,实物在周转库 A-401
+    hook = colls["SS-2017-0049"]
+    misplaced_item = models.InventoryItem(
+        task_id=t1.id,
+        collection_id=hook.id,
+        snapshot_accession_no=hook.accession_no,
+        snapshot_name=hook.name,
+        snapshot_location_id=hook.location_id,
+        snapshot_location_name=f"{jade_loc.code} {jade_loc.name}",
+        snapshot_status=hook.status,
+        result=models.INV_RESULT_MISPLACED,
+        actual_location_id=locs["A-401"].id,
+        actual_location_name=f"{locs['A-401'].code} {locs['A-401'].name}",
+        condition_note="实物在周转库 A-401 第 2 排架发现,与账面库位不符",
+        checker="陈立",
+        checked_at=_dt(today - timedelta(days=4), 11),
+        review_status=models.INV_REVIEW_CONFIRM,
+        review_opinion="复核确认实物确在周转库,系前期借展归库时误放,建议移库更正。",
+        reviewer="保管部·周文澜",
+        reviewed_at=_dt(today - timedelta(days=2), 10),
+    )
+    db.add(misplaced_item)
+    db.flush()
+    # 错位已提交移库调整,待审批
+    db.add(
+        models.InventoryAdjustment(
+            task_id=t1.id,
+            item_id=misplaced_item.id,
+            adjust_type=models.ADJUST_MOVE,
+            reason="归库时误放周转库,申请移库更正回玉石器库房",
+            payload={"to_location_id": jade_loc.id},
+            applicant="陈立",
+        )
+    )
+    _inv_log(t1, "发起盘点", f"范围:库房「{jade_loc.name}」,共 {len(jade_colls)} 件;截止 {today + timedelta(days=3)}",
+             "保管部·周文澜", 6)
+    _inv_log(t1, "盘点核对", f"{hook.accession_no} {hook.name}:错位",
+             "陈立", 4, misplaced_item.id)
+    _inv_log(t1, "差异复核", f"{hook.accession_no}:差异属实", "保管部·周文澜", 2, misplaced_item.id)
+    _inv_log(t1, "提交调整申请", f"{hook.accession_no}:移库更正", "陈立", 2, misplaced_item.id)
+
+    # 任务 2:一级文物全面盘点(已结案,含盘亏销账历史,全链路留痕)
+    t2 = models.InventoryTask(
+        title="2025 年度一级文物全面盘点",
+        scope_type="等级",
+        scope_value="一级文物",
+        librarian="馆办·孟昭年",
+        checker="盘点小组",
+        start_date=today - timedelta(days=200),
+        due_date=today - timedelta(days=160),
+        finished_at=_dt(today - timedelta(days=155), 17),
+        status=models.INV_COMPLETED,
+        remark="年度一级文物专项核查,账实相符率良好。",
+    )
+    db.add(t2)
+    db.flush()
+    grade_one = [c for c in colls.values() if c.grade == "一级文物"]
+    for c in grade_one:
+        _inv_item(t2, c, models.INV_RESULT_MATCH,
+                  checker="盘点小组",
+                  checked_at=_dt(today - timedelta(days=180), 15))
+    _inv_log(t2, "发起盘点", f"范围:等级「一级文物」,共 {len(grade_one)} 件", "馆办·孟昭年", 200)
+    _inv_log(t2, "结案",
+             f"共盘 {len(grade_one)} 件,账实全部相符;批准调整 0 项",
+             "馆办·孟昭年", 155)
 
     db.commit()
 

@@ -83,3 +83,26 @@ export const envApi = {
     http.post(`/api/environment/alerts/${id}/ack`, null, { params: { by } }).then((r) => r.data),
   simulate: (data) => http.post('/api/environment/simulate', data).then((r) => r.data),
 }
+
+export const inventoryApi = {
+  list: (params) => http.get('/api/inventories', { params }).then((r) => r.data),
+  meta: () => http.get('/api/inventories/meta').then((r) => r.data),
+  scopePreview: (params) =>
+    http.get('/api/inventories/scope-preview', { params }).then((r) => r.data),
+  get: (id) => http.get(`/api/inventories/${id}`).then((r) => r.data),
+  create: (data) => http.post('/api/inventories', data).then((r) => r.data),
+  cancel: (id, data) => http.post(`/api/inventories/${id}/cancel`, data).then((r) => r.data),
+  check: (id, itemId, data) =>
+    http.post(`/api/inventories/${id}/items/${itemId}/check`, data).then((r) => r.data),
+  surplus: (id, data) => http.post(`/api/inventories/${id}/surplus`, data).then((r) => r.data),
+  review: (id, itemId, data) =>
+    http.post(`/api/inventories/${id}/items/${itemId}/review`, data).then((r) => r.data),
+  applyAdjustment: (id, data) =>
+    http.post(`/api/inventories/${id}/adjustments`, data).then((r) => r.data),
+  decideAdjustment: (id, adjId, data) =>
+    http
+      .post(`/api/inventories/${id}/adjustments/${adjId}/decide`, data)
+      .then((r) => r.data),
+  complete: (id, data) =>
+    http.post(`/api/inventories/${id}/complete`, data).then((r) => r.data),
+}

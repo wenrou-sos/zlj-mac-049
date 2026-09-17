@@ -64,6 +64,9 @@ function go(path) {
         <el-menu-item index="/loans">
           <el-icon><Promotion /></el-icon><span>借展跟踪</span>
         </el-menu-item>
+        <el-menu-item index="/inventories">
+          <el-icon><Finished /></el-icon><span>馆藏盘点</span>
+        </el-menu-item>
         <el-menu-item index="/environment">
           <el-icon><Odometer /></el-icon>
           <span>环境监测</span>

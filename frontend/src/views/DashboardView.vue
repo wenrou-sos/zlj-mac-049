@@ -142,6 +142,30 @@ onMounted(load)
       </el-row>
 
       <el-row :gutter="14" style="margin-top:14px">
+        <el-col :span="24">
+          <el-card class="stat-card" body-style="padding:16px 20px" @click="router.push('/inventories')">
+            <div class="inv-banner">
+              <el-icon :size="26" color="#d4a84b"><Finished /></el-icon>
+              <div class="inv-banner-main">
+                <div class="inv-banner-title">馆藏盘点</div>
+                <div style="font-size:12px;color:#909399">
+                  进行中任务 {{ data.inventory_active }} 个
+                  <el-tag v-if="data.inventory_overdue" type="danger" size="small" effect="plain" style="margin-left:8px">
+                    已逾期 {{ data.inventory_overdue }}
+                  </el-tag>
+                  <el-tag v-if="data.inventory_pending_review" type="warning" size="small" effect="plain" style="margin-left:6px">
+                    {{ data.inventory_pending_review }} 个任务有差异待复核
+                  </el-tag>
+                  <span v-if="!data.inventory_active" style="margin-left:8px">暂无进行中盘点</span>
+                </div>
+              </div>
+              <el-button type="primary" plain size="small">进入盘点</el-button>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+
+      <el-row :gutter="14" style="margin-top:14px">
         <el-col :span="8"><el-card><div ref="categoryChart" style="height:280px"></div></el-card></el-col>
         <el-col :span="8"><el-card><div ref="statusChart" style="height:280px"></div></el-card></el-col>
         <el-col :span="8"><el-card><div ref="gradeChart" style="height:280px"></div></el-card></el-col>
@@ -209,5 +233,19 @@ onMounted(load)
   align-items: center;
   flex-wrap: wrap;
   font-size: 13px;
+}
+.inv-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.inv-banner-main {
+  flex: 1;
+}
+.inv-banner-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1f2d3d;
+  margin-bottom: 2px;
 }
 </style>

@@ -47,6 +47,16 @@ const routes = [
         component: () => import('../views/LoansView.vue'),
       },
       {
+        path: 'inventories',
+        name: '馆藏盘点',
+        component: () => import('../views/InventoriesView.vue'),
+      },
+      {
+        path: 'inventories/:id',
+        name: '盘点任务详情',
+        component: () => import('../views/InventoryDetailView.vue'),
+      },
+      {
         path: 'environment',
         name: '环境监测',
         component: () => import('../views/EnvironmentView.vue'),

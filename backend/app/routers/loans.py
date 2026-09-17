@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
+from ..services import inventory_service as inv_svc
 
 router = APIRouter(prefix="/api/loans", tags=["借展管理"])
 
@@ -62,6 +63,11 @@ def create_loan(payload: schemas.LoanCreate, db: Session = Depends(get_db)):
     c = db.get(models.Collection, payload.collection_id)
     if not c:
         raise HTTPException(404, "藏品不存在")
+    busy = inv_svc.is_collection_busy(db, c.id)
+    if busy:
+        raise HTTPException(
+            409, f"藏品正处于盘点任务「{busy.title}」中,盘点期间不能办理借展"
+        )
     if c.status != models.STATUS_IN_STORAGE:
         hint = {
             models.STATUS_EXHIBITION: "请先在展陈管理中办理撤展归库",

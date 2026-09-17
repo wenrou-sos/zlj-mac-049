@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
+from ..services import inventory_service as inv_svc
 
 router = APIRouter(prefix="/api/exhibitions", tags=["展陈管理"])
 
@@ -90,6 +91,11 @@ def add_exhibition_item(
     )
     if exists:
         raise HTTPException(400, "该藏品已在本展览中展出")
+    busy = inv_svc.is_collection_busy(db, c.id)
+    if busy:
+        raise HTTPException(
+            409, f"藏品正处于盘点任务「{busy.title}」中,盘点期间不能布展"
+        )
     if c.status != models.STATUS_IN_STORAGE:
         hint = {
             models.STATUS_EXHIBITION: "藏品已在其他展览中,请先撤展",

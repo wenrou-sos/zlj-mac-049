@@ -73,6 +73,31 @@ def dashboard(db: Session = Depends(get_db)):
         .scalar()
     )
 
+    active_inv = (
+        db.query(models.InventoryTask)
+        .filter(models.InventoryTask.status.in_(models.INV_ACTIVE_STATUSES))
+        .all()
+    )
+    inventory_active = len(active_inv)
+    inventory_overdue = sum(1 for t in active_inv if today > t.due_date)
+    inventory_pending_review = (
+        db.query(func.count(func.distinct(models.InventoryItem.task_id)))
+        .join(models.InventoryTask, models.InventoryItem.task_id == models.InventoryTask.id)
+        .filter(
+            models.InventoryTask.status.in_(models.INV_ACTIVE_STATUSES),
+            models.InventoryItem.result.in_(
+                [
+                    models.INV_RESULT_SURPLUS,
+                    models.INV_RESULT_LOSS,
+                    models.INV_RESULT_MISPLACED,
+                    models.INV_RESULT_DAMAGED,
+                ]
+            ),
+            models.InventoryItem.review_status == models.INV_REVIEW_PENDING,
+        )
+        .scalar()
+    ) or 0
+
     env_status = []
     for loc in db.query(models.Location).order_by(models.Location.code).all():
         reading = (
@@ -122,4 +147,7 @@ def dashboard(db: Session = Depends(get_db)):
         exhibitions_active=exhibitions_active,
         restorations_active=restorations_active or 0,
         env_status=env_status,
+        inventory_active=inventory_active,
+        inventory_overdue=inventory_overdue,
+        inventory_pending_review=inventory_pending_review,
     )

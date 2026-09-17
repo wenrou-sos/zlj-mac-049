@@ -291,3 +291,148 @@ class DashboardOut(BaseModel):
     exhibitions_active: int
     restorations_active: int
     env_status: list[dict[str, Any]]
+    inventory_active: int = 0
+    inventory_overdue: int = 0
+    inventory_pending_review: int = 0
+
+
+# ---------- Inventory 盘点 ----------
+class InventoryCreate(BaseModel):
+    title: str
+    scope_type: str  # 库房/类别/等级
+    scope_value: str
+    location_id: int | None = None
+    librarian: str
+    checker: str | None = None
+    start_date: date | None = None
+    due_date: date
+    remark: str | None = None
+
+
+class InventoryCheckIn(BaseModel):
+    """盘点员逐件扫描 / 核对"""
+
+    result: str  # 相符/盘盈/盘亏/错位/损坏
+    actual_location_id: int | None = None
+    condition_note: str | None = None
+    checker: str | None = None
+    collection_id: int | None = None  # 盘盈:账外实物匹配到的藏品(通常为空,走建档)
+
+
+class InventoryReviewIn(BaseModel):
+    """差异复核"""
+
+    confirm: bool  # True=差异属实 False=复核无误
+    opinion: str | None = None
+    reviewer: str | None = None
+
+
+class InventoryAdjustmentIn(BaseModel):
+    """差异调整申请"""
+
+    item_id: int | None = None
+    adjust_type: str  # 移库更正/送修登记/档案更正/状态处理
+    reason: str | None = None
+    payload: dict[str, Any] = {}
+    applicant: str | None = None
+
+
+class InventoryAdjustmentDecide(BaseModel):
+    approve: bool
+    opinion: str | None = None
+    approver: str | None = None
+
+
+class InventoryCompleteIn(BaseModel):
+    operator: str | None = None
+    summary: str | None = None
+
+
+class InventoryLogOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    item_id: int | None
+    action: str
+    detail: str | None
+    operator: str | None
+    created_at: datetime
+
+
+class InventoryAdjustmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    task_id: int
+    item_id: int | None
+    collection_id: int | None
+    adjust_type: str
+    reason: str | None
+    payload: dict[str, Any] = {}
+    applicant: str | None
+    applied_at: datetime
+    status: str
+    approver: str | None
+    approved_at: datetime | None
+    approve_opinion: str | None
+    collection_name: str | None = None
+    accession_no: str | None = None
+
+
+class InventoryItemOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    task_id: int
+    collection_id: int | None
+    snapshot_accession_no: str
+    snapshot_name: str
+    snapshot_location_id: int | None
+    snapshot_location_name: str | None
+    snapshot_status: str
+    result: str
+    actual_location_id: int | None
+    actual_location_name: str | None
+    condition_note: str | None
+    checker: str | None
+    checked_at: datetime | None
+    review_status: str
+    review_opinion: str | None
+    reviewer: str | None
+    reviewed_at: datetime | None
+    current_location_name: str | None = None
+    current_status: str | None = None
+    adjustments: list[InventoryAdjustmentOut] = []
+
+
+class InventoryTaskOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: int
+    title: str
+    scope_type: str
+    scope_value: str
+    location_id: int | None
+    librarian: str
+    checker: str | None
+    start_date: date
+    due_date: date
+    finished_at: datetime | None
+    status: str
+    remark: str | None
+    created_at: datetime
+    overdue: bool = False
+    days_remaining: int | None = None
+    total_count: int = 0
+    checked_count: int = 0
+    pending_count: int = 0
+    diff_count: int = 0
+    reviewed_count: int = 0
+    pending_adjustments: int = 0
+    items: list[InventoryItemOut] = []
+    logs: list[InventoryLogOut] = []
+
+
+class InventoryScopePreview(BaseModel):
+    scope_type: str
+    scope_value: str
+    location_id: int | None = None
+    count: int
+    occupied: int
+    conflicts: list[dict[str, Any]] = []

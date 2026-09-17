@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from .. import models, schemas
 from ..database import get_db
+from ..services import inventory_service as inv_svc
 
 router = APIRouter(tags=["藏品档案与出入库"])
 
@@ -15,6 +16,17 @@ def _get_collection_or_404(db: Session, collection_id: int) -> models.Collection
     if not c:
         raise HTTPException(404, "藏品不存在")
     return c
+
+
+def _ensure_not_in_inventory(db: Session, c: models.Collection) -> None:
+    """盘点占用期间禁止改动正式档案 / 位置(差异调整需走盘点审批)。"""
+    task = inv_svc.is_collection_busy(db, c.id)
+    if task:
+        raise HTTPException(
+            409,
+            f"该藏品正处于盘点任务「{task.title}」(#{task.id})中,"
+            "盘点期间档案与库位被冻结,差异请通过盘点复核与调整申请处理",
+        )
 
 
 # ---------- 藏品档案 ----------
@@ -97,6 +109,7 @@ def update_collection(
     collection_id: int, payload: schemas.CollectionUpdate, db: Session = Depends(get_db)
 ):
     c = _get_collection_or_404(db, collection_id)
+    _ensure_not_in_inventory(db, c)
     data = payload.model_dump(exclude_unset=True)
     if "accession_no" in data:
         dup = (
@@ -203,6 +216,7 @@ def create_movement(
     collection_id: int, payload: schemas.MovementCreate, db: Session = Depends(get_db)
 ):
     c = _get_collection_or_404(db, collection_id)
+    _ensure_not_in_inventory(db, c)
     if c.status not in (models.STATUS_IN_STORAGE, models.STATUS_OUT_STORAGE):
         raise HTTPException(
             400,

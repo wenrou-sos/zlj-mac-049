@@ -14,6 +14,7 @@ from .routers import (
     dashboard,
     environment,
     exhibitions,
+    inventories,
     loans,
     locations,
     restorations,
@@ -40,6 +41,7 @@ for router in (
     restorations.router,
     loans.router,
     environment.router,
+    inventories.router,
 ):
     app.include_router(router)
 
